@@ -1,7 +1,9 @@
 import requests
 import json
 import os
-from datetime import datetime  # Zaman damgası için gerekli modül
+import sys
+import re  # Metin temizleme için eklendi
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,7 +14,38 @@ CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 USER_ID = os.getenv("USER_ID")
 
 DB_FILE = "meetings_db.json"
-N8N_WEBHOOK_URL = ""
+
+
+def clean_vtt(vtt_text):
+    """
+    VTT formatındaki dökümü temizler:
+    - WEBVTT başlığını siler.
+    - Zaman damgalarını (00:00:00.000 --> ...) siler.
+    - <v İsim> etiketlerini 'İsim: ' formatına çevirir.
+    """
+    if not vtt_text:
+        return ""
+
+    lines = vtt_text.splitlines()
+    cleaned_lines = []
+
+    for line in lines:
+        line = line.strip()
+        # WEBVTT başlığını, boş satırları ve zaman damgalarını atla
+        if not line or line.startswith("WEBVTT") or "-->" in line:
+            continue
+
+        # Konuşmacı etiketini temizle: <v Mert Genc>Merhaba</v> -> Mert Genc: Merhaba
+        speaker_match = re.search(r'<v (.*?)>(.*?)</v>', line)
+        if speaker_match:
+            speaker_name = speaker_match.group(1)
+            content = speaker_match.group(2)
+            cleaned_lines.append(f"{speaker_name}: {content}")
+        else:
+            # Etiket yoksa ama metin varsa direkt ekle
+            cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines)
 
 
 def get_token():
@@ -33,7 +66,7 @@ def load_db():
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except:
             return {}
     return {}
 
@@ -47,7 +80,6 @@ def get_meeting_id_from_url(token, join_url):
     url = f"https://graph.microsoft.com/v1.0/users/{USER_ID}/onlineMeetings"
     params = {"$filter": f"JoinWebUrl eq '{join_url}'"}
     headers = {"Authorization": f"Bearer {token}"}
-
     res = requests.get(url, headers=headers, params=params)
     if res.status_code == 200:
         values = res.json().get("value", [])
@@ -58,93 +90,64 @@ def get_meeting_id_from_url(token, join_url):
 def get_transcript_content(token, meeting_id):
     headers = {"Authorization": f"Bearer {token}"}
     list_url = f"https://graph.microsoft.com/v1.0/users/{USER_ID}/onlineMeetings/{meeting_id}/transcripts"
-
     res = requests.get(list_url, headers=headers)
     if res.status_code == 200:
         transcripts = res.json().get("value", [])
         if transcripts:
             t_id = transcripts[0]["id"]
             content_url = f"{list_url}/{t_id}/content"
-            c_headers = {"Authorization": f"Bearer {token}", "Accept": "text/vtt"}
-            c_res = requests.get(content_url, headers=c_headers)
+            c_res = requests.get(content_url, headers={"Authorization": f"Bearer {token}", "Accept": "text/vtt"})
             c_res.encoding = 'utf-8'
             return c_res.text if c_res.status_code == 200 else None
     return None
 
-"""
-def send_to_n8n(data):
-    if N8N_WEBHOOK_URL:
-        try:
-            r = requests.post(N8N_WEBHOOK_URL, json=data)
-            if r.status_code == 200:
-                print(">>> Veri başarıyla n8n'e iletildi.")
-        except Exception as e:
-            print(f"!!! n8n gönderim hatası: {e}")
-"""
-
 
 def main():
-    print("Sistem başlatıldı")
     try:
         token = get_token()
-    except Exception as e:
-        print(f"Kritik Hata (Token alınamadı): {e}")
-        return
+        db = load_db()
+        events_url = f"https://graph.microsoft.com/v1.0/users/{USER_ID}/events"
+        events = requests.get(events_url, headers={"Authorization": f"Bearer {token}"}).json().get("value", [])
 
-    db = load_db()
+        new_meetings = []
 
-    events_url = f"https://graph.microsoft.com/v1.0/users/{USER_ID}/events"
-    headers = {"Authorization": f"Bearer {token}"}
-    events_res = requests.get(events_url, headers=headers)
-    events_res.encoding = 'utf-8'
-    events = events_res.json().get("value", [])
+        for event in events:
+            online = event.get("onlineMeeting")
+            if not online: continue
 
-    new_data_processed = False
+            join_url = online.get("joinUrl")
+            if join_url in db and db[join_url].get("status") == "completed":
+                continue
 
-    for event in events:
-        online = event.get("onlineMeeting")
-        if not online: continue
-
-        join_url = online.get("joinUrl")
-        subject = event.get("subject")
-
-        if join_url in db and db[join_url].get("status") == "completed":
-            continue
-
-        print(f"\nKontrol ediliyor: {subject}")
-
-        meeting_id = db.get(join_url, {}).get("meeting_id")
-        if not meeting_id:
             meeting_id = get_meeting_id_from_url(token, join_url)
+            if meeting_id:
+                raw_transcript = get_transcript_content(token, meeting_id)
+                if raw_transcript:
 
-        if not meeting_id:
-            print(f" ID bulunamadı, döküm olmayabilir.")
-            continue
+                    clean_transcript = clean_vtt(raw_transcript)#
 
-        transcript = get_transcript_content(token, meeting_id)
+                    meeting_data = {
+                        "subject": event.get("subject"),
+                        "meeting_id": meeting_id,
+                        "join_url": join_url,
+                        "start": event.get("start", {}).get("dateTime"),
+                        "end": event.get("end", {}).get("dateTime"),
+                        "transcript": clean_transcript,  # Temizlenmiş veri
+                        "status": "completed",
+                        "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    db[join_url] = meeting_data
+                    new_meetings.append(meeting_data)
 
-        if transcript:
-            db[join_url] = {
-                "subject": subject,
-                "meeting_id": meeting_id,
-                "start": event.get("start", {}).get("dateTime"),
-                "transcript": transcript,
-                "status": "completed",
-                "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Hatalı kısım düzeltildi
-            }
-            new_data_processed = True
-            print(f"   ✅ Döküm alındı: {subject}")
-
-            #send_to_n8n(db[join_url])
+        if new_meetings:
+            save_db(db)
+            print(json.dumps(new_meetings, ensure_ascii=False))
         else:
-            print(f"   ⚠️ Döküm henüz hazır değil.")
-            db[join_url] = {"subject": subject, "meeting_id": meeting_id, "status": "pending"}
+            print(json.dumps([]))
 
-    if new_data_processed:
-        save_db(db)
-        print("\nİşlem tamamlandı. Yeni dökümler kaydedildi.")
-    else:
-        print("\nYeni döküm bulunamadı.")
+    except Exception as e:
+        sys.stderr.write(f"Hata Oluştu: {str(e)}\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
