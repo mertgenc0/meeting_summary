@@ -1,173 +1,173 @@
-**Proje Geliştirme aşamasındadır**
-# 🎓 Teams Transcript AI Agent & Multi-Platform Automation
+# 📊 Microsoft Teams Meeting Transcript Automation
 
-Bu proje, Microsoft Teams toplantılarını otonom bir şekilde takip eden, toplantı dökümlerini (transcript) analiz edip profesyonel raporlara dönüştüren ve kurumsal araçlar (**Notion, Outlook**) arasında senkronize eden **uçtan uca bir mühendislik çözümüdür**.
+Bu proje, **Microsoft Teams toplantılarının transcript (konuşma dökümü)** verilerini **Microsoft Graph API** üzerinden otomatik olarak çekip, **n8n** ile uçtan uca bir otomasyon hattı kurarak özetlenmesini, PDF haline getirilmesini ve e-posta ile gönderilmesini amaçlayan **deneme / kendini geliştirme odaklı** bir projedir.
 
----
-
-## 📝 Proje Hakkında
-
-Bu çalışma, kurumsal toplantı yönetimini tamamen otomatize etmek amacıyla geliştirilmiştir.  
-Toplantı dökümlerinin manuel olarak özetlenmesi sürecini ortadan kaldırarak;
-
-- Veri çekme  
-- Veri temizleme  
-- Yapay zeka analizi  
-- Dokümantasyon  
-- Rapor üretimi ve dağıtımı  
-
-adımlarını **tek ve otonom bir iş akışında** birleştirir.
+Proje; Python, PostgreSQL, n8n ve LLM (Gemini) entegrasyonlarını bir arada kullanarak gerçek hayatta kullanılabilecek profesyonel bir otomasyon mimarisi sunar.
 
 ---
 
-## 🛠️ Kullanılan Teknolojiler ve Araçlar
+## 🚀 Proje Özeti
 
-### 🔧 Orkestrasyon
-- **n8n** (Self-Hosted / Docker)
+Akış şu şekildedir:
 
-### 💻 Programlama & Scripting
-- **Python 3.x**
-- **PowerShell**
+1. **Microsoft Graph API** ile son 24 saat içindeki Teams toplantıları alınır.
+2. Toplantıya ait **transcript (VTT formatında)** çekilir.
+3. Transcript temizlenir ve işlenir.
+4. Çıktılar **PostgreSQL** veritabanına kaydedilir.
+5. **n8n** üzerinden:
 
-### ☁️ Bulut API'leri
-- **Microsoft Graph API**  
-  - Teams Meeting Transcript  
-  - Outlook Mail Services  
-
-- **Google Gemini Pro API**  
-  - NLP & Meeting Summarization  
-
-- **PDF.co API**  
-  - HTML → PDF dönüşümü  
-
-- **Notion API**  
-  - Database & Page Management  
-
-### 📁 Veri Formatları
-- JSON  
-- VTT  
-- HTML  
-- Binary Data (PDF)
+   * Gemini ile toplantı özeti oluşturulur
+   * Özet HTML formatında üretilir
+   * HTML → PDF dönüşümü yapılır (**PDF.co API**) 
+   * PDF özeti veritabanı ile merge edilir
+   * PDF, e-posta eki olarak otomatik gönderilir
 
 ---
 
-## 🏗️ Sistem Mimarisi & İş Akışı (Workflow)
+## 🧠 Kullanılan Teknolojiler
 
-Proje, **n8n üzerinde kurgulanmış ve birbirine entegre çalışan 9 ana aşamadan** oluşmaktadır:
-
-
-
-### 🔁 Workflow Adımları
-
-1. **Trigger (Schedule)**
-   - Belirlenen periyotlarda (saatlik / günlük) otomatik tetikleme
-
-2. **Extraction (Python & Microsoft Graph API)**
-   - Python scripti ile MS Graph API üzerinden toplantı dökümleri çekilir
-
-3. **Data Cleaning (Regex)**
-   - VTT formatındaki ham metinler:
-     - Zaman damgalarından arındırılır
-     - Konuşmacı isimleri korunur
-
-4. **Database Entry (Notion)**
-   - Toplantı bilgileri Notion veritabanında yeni bir sayfa olarak kaydedilir
-
-5. **AI Analysis (Google Gemini)**
-   - Temizlenmiş transcript:
-     - Toplantı amacı
-     - Alınan kararlar
-     - Aksiyon maddeleri  
-   şeklinde **HTML formatında** özetlenir
-
-6. **PDF Generation (PDF.co)**
-   - Oluşturulan HTML içeriği profesyonel PDF raporuna dönüştürülür
-
-7. **Data Update (Notion Update)**
-   - PDF rapor linki ilgili Notion kaydına otomatik eklenir
-
-8. **Binary Processing**
-   - PDF dosyası binary veri olarak belleğe alınır
-
-9. **Distribution (Microsoft Outlook)**
-   - PDF ekli toplantı özeti, Outlook üzerinden ilgili kişilere gönderilir
+* **Python**
+* **Microsoft Graph API** (Teams & Calendar)
+* **Microsft Permission (Powershell)
+* **PostgreSQL**
+* **n8n** (Workflow Automation)
+* **Gemini (LLM)** – Toplantı özeti
+* **PDF.co API** – HTML to PDF
+* **Docker / Local Server** (opsiyonel)
 
 ---
 
-## 💻 Teknik Detaylar
+## 🏗️ Sistem Mimarisi
 
-### 🐍 Python Entegrasyonu
-
-Toplantı verilerinin çekilmesi ve temizlenmesi sürecinde Python kullanılmıştır.  
-Yetkilendirme süreci **MSAL Client Credentials Flow** ile güvenli şekilde gerçekleştirilir.
-
-#### Örnek VTT Temizleme Mantığı
-
-```python
-def clean_vtt(vtt_text):
-    """
-    - WEBVTT başlığını temizler
-    - Zaman damgalarını kaldırır
-    - <v Name> formatını 'Name:' formatına çevirir
-    """
-    pass
-
+```text
+Scheduler Trigger
+      ↓
+Execute Command (Python Script)
+      ↓
+PostgreSQL (Upsert)
+      ↓
+      ├──▶ Gemini (Meeting Summary)
+      │        ↓
+      │    HTML Output
+      │        ↓
+      │    PDF.co (HTML → PDF)
+      │        ↓
+      └────────▶ Merge
+                   ↓
+               Mail Send (PDF Ekli)
 ```
-## ⚙️ n8n & PowerShell
+![n8nworkflow.png](images%2Fn8nworkflow.png)
 
-Sistem;
+## 📧 Otomatik Gönderilen Mail Çıktısı
 
-- **Docker container**
-- veya **lokal sunucu**
+![mailoutput.png](images%2Fmailoutput.png)
+---
+## 🐍 Python Script – Ne Yapıyor?
 
-üzerinde çalışabilir.
+Python scripti aşağıdaki görevleri yerine getirir:
 
-PowerShell komutları aracılığıyla Python scriptleri tetiklenerek **hibrit bir otomasyon yapısı** sağlanır.
+* OAuth2 **Client Credentials Flow** ile access token alır
+* Son **24 saat** içindeki toplantıları çeker
+* `joinUrl` üzerinden **duplicate kontrolü** yapar
+* Transcript içeriğini **VTT → temiz metin** formatına dönüştürür
+* Yeni toplantıları çıktı olarak verir. (n8n'de işlemlerin yapılmasına hazır hale getirir)
 
+### 🔒 Duplicate Kontrolü
+
+Aynı toplantının birden fazla kez işlenmesini önlemek için:
+
+```sql
+SELECT 1 FROM meetings WHERE join_url = %s
+```
+
+kontrolü yapılır.
 ---
 
-## 📸 Ekran Görüntüleri
-
-### 1️⃣ n8n Workflow Genel Görünüm
-*(n8n üzerinde oluşturulan tüm node'ların yer aldığı genel akış görünümü)*
-![n8nworkschema.png](n8nworkschema.png)
-### 2️⃣ Notion Veritabanı
-*(Oluşturulan toplantı kayıtları ve güncellenen PDF linklerinin yer aldığı Notion tablosu)*
-![notiondb.png](notiondb.png)
-### 3️⃣ Gemini AI Çıktısı
-*(Gemini Pro modeli tarafından üretilen toplantı özeti / HTML içerik örneği)*
-
-### 4️⃣ Outlook Mail & PDF Eki
-*Otomatik gönderilen e-posta ve ekli PDF raporun görünümü (PDF eki geliştirme aşamasındadır şuanlık indirme url'si göndermktedir) *
-
----
-
-## ⚙️ Kurulum Talimatları
-
-### 1️⃣ Azure Portal Ayarları
-
-- Azure Portal üzerinden **App Registration** oluşturun
-- Aşağıdaki izinleri ekleyin:
-
-  - `OnlineMeetings.Read`
-  - `Mail.Send`
-
----
-
-### 2️⃣ Ortam Değişkenleri
-
-Proje kök dizininde bir `.env` dosyası oluşturun:
+## 🗂️ Ortam Değişkenleri (.env)
 
 ```env
-TENANT_ID=xxxxxxxx
-CLIENT_ID=xxxxxxxx
-CLIENT_SECRET=xxxxxxxx
+# Microsoft Graph
+TENANT_ID=
+CLIENT_ID=
+CLIENT_SECRET=
+USER_ID=
 
+# PostgreSQL
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
+DB_HOST=
+DB_PORT=
 ```
-## 📌 Lisans
 
-Bu proje, **kişisel gelişim ve eğitim amaçlı** olarak geliştirilmiştir.
+---
 
-Otomasyon, bulut servisleri ve yapay zekâ entegrasyonu konularında teknik yetkinliklerin
-gösterilmesi amacıyla açık olarak paylaşılmıştır.
+## 🔁 n8n Workflow Açıklaması
+
+### 1️⃣ Scheduler Trigger
+
+* Workflow her gün otomatik çalışır
+
+### 2️⃣ Execute Command
+
+* Python script tetiklenir
+* JSON çıktısı alınır
+
+### 3️⃣ PostgreSQL (Upsert)
+
+* Yeni toplantılar veritabanına eklenir
+
+### 4️⃣ Gemini (gemini-2.5-flash)
+
+* Transcript üzerinden toplantı özeti çıkarılır
+* HTML formatında çıktı üretilir
+
+### 5️⃣ PDF.co API
+
+* HTML içeriği PDF’e dönüştürülür
+
+### 6️⃣ Merge & Mail Send
+
+* PDF ve database birleştirilir
+* PDF, e-posta eki olarak gönderilir
+
+---
+
+## 📌 Projenin Amacı
+
+Bu proje:
+
+* n8n + Python hibrit otomasyon mantığını öğrenmek
+* Microsoft Graph API ile gerçek veri kullanmak
+* DataBase bağlantıalrı hakkında bilgi sahibi olmak
+* LLM tabanlı meeting summary sistemleri geliştirmek
+* Low-code & code-first yaklaşımları karşılaştırmak
+
+amaçlarıyla geliştirilmiştir.
+
+---
+
+## ⚠️ Notlar
+
+* Proje **deneme / öğrenme amaçlıdır**
+* Production ortamına alınmadan önce:
+
+  * Rate limit
+  * Error handling
+  * Logging
+  * Security hardening
+
+eklenmelidir.
+
+> **Not:** Bu proje; model seçimi, özetleme stratejileri, event-driven mimari,Python ile PDF çıkarma, kullanıcı arayüzü entegrasyonu gibi birçok farklı açıdan geliştirilmeye açıktır.  
+> Ancak mevcut haliyle hedeflenen öğrenme ve deneyim kazanımı sağlandığı için bu aşamada yeterli görülmüş ve  yeni projelere odaklanılmaya baaşlayacağım.
+
+
+---
+
+## 📬 İletişim
+
+Her türlü geri bildirim ve geliştirme önerisine açığım 🚀
+
+> *Bu proje, otomasyon ve yapay zekâ entegrasyonları üzerine kendimi geliştirmek amacıyla oluşturulmuştur.*
 
